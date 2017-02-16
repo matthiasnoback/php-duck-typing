@@ -1,0 +1,4 @@
+- Think about how duck-typing could be applied to parameters.
+- Add: can be used as string.
+- Add: can be used as iterable.
+- Add: can be used as map?

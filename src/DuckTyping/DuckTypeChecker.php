@@ -3,36 +3,59 @@ declare(strict_types = 1);
 
 namespace DuckTyping;
 
-use Assert\Assertion;
+use DuckTyping\Types\HasToStringMethod;
 
 class DuckTypeChecker
 {
-    public static function valueCanBeUsedAs($object, string $interface) : bool
+    public static function valueCanBeUsedAs($type, string $useAsType) : bool
     {
-        Assertion::isObject($object);
-        Assertion::interfaceExists($interface);
+        if (is_object($type)) {
+            $type = get_class($type);
+        } else {
+            $type = gettype($type);
+        }
 
-        if ($object instanceof $interface) {
+        return self::typeCanBeUsedAs($type, $useAsType);
+    }
+
+    private static function typeCanBeUsedAs(string $type, string $useAsType)
+    {
+        if ($type === $useAsType) {
             return true;
         }
 
-        if (self::hasImplementsAnnotationForInterface($object, $interface)) {
-            return true;
+        // TODO this may be the place to allow type coercion
+
+        if (class_exists($type)) {
+            if ($useAsType === 'string') {
+                // special case to treat objects with __toString() method as a string
+                return self::typeCanBeUsedAs($type, HasToStringMethod::class);
+            }
+
+            if (is_a($type, $useAsType, true)) {
+                return true;
+            }
+
+            if (self::hasImplementsAnnotationForInterface($type, $useAsType)) {
+                return true;
+            }
+
+            return self::hasMatchingMethods($type, $useAsType);
         }
 
-        return self::hasMatchingMethods($object, $interface);
+        return false;
     }
 
     /**
      * Returns `true` if the given object has an annotation claiming that it implements the given interface.
      *
-     * @param object $object
+     * @param string $type
      * @param string $interface
      * @return bool
      */
-    private static function hasImplementsAnnotationForInterface($object, string $interface) : bool
+    private static function hasImplementsAnnotationForInterface(string $type, string $interface) : bool
     {
-        $docComment = (new \ReflectionObject($object))->getDocComment();
+        $docComment = (new \ReflectionClass($type))->getDocComment();
         if (!$docComment) {
             return false;
         }
@@ -52,20 +75,33 @@ class DuckTypeChecker
         return false;
     }
 
-    private static function hasMatchingMethods($object, string $interface) : bool
+    private static function hasMatchingMethods(string $type, string $interface) : bool
     {
-        $reflectionObject = new \ReflectionObject($object);
+        $reflectionClass = new \ReflectionClass($type);
 
         $reflectionInterface = new \ReflectionClass($interface);
         foreach ($reflectionInterface->getMethods() as $interfaceMethod) {
-            if (!$reflectionObject->hasMethod($interfaceMethod->getName())) {
+            if (!$reflectionClass->hasMethod($interfaceMethod->getName())) {
                 return false;
             }
 
-            $actual = self::buildMethodSignature($reflectionObject->getMethod($interfaceMethod->getName()));
+            $actual = self::buildMethodSignature($reflectionClass->getMethod($interfaceMethod->getName()));
             $expected = self::buildMethodSignature($interfaceMethod);
-            if ($expected != $actual) {
+            if ($expected['parameters'] != $actual['parameters']) {
                 return false;
+            }
+
+            if ($expected['return']['type'] !== null) {
+                // we expect a specific return type
+
+                if (!$expected['return']['allowsNull'] && $actual['return']['allowsNull']) {
+                    // we rely on a return value so the implementation should not allow for null
+                    return false;
+                }
+
+                if (!self::typeCanBeUsedAs($actual['return']['type'], $expected['return']['type'])) {
+                    return false;
+                }
             }
         }
 
@@ -76,10 +112,12 @@ class DuckTypeChecker
     {
         $signature = [];
 
-        $signature['return_type'] = [
-            'type' => (string)$method->getReturnType(),
+        $signature['return'] = [
+            'type' => $method->getReturnType() instanceof \ReflectionType ? (string)$method->getReturnType() : null,
             'allowsNull' => $method->getReturnType() ? $method->getReturnType()->allowsNull() : null
         ];
+
+        $signature['parameters'] = [];
 
         foreach ($method->getParameters() as $parameter) {
             $signature['parameters'][$parameter->getName()] = [

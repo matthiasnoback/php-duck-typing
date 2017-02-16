@@ -15,6 +15,9 @@ use Test\Unit\DuckTyping\Fixtures\ClassWithMatchingMethodsButNoMatchingReturnTyp
 use Test\Unit\DuckTyping\Fixtures\ClassWithNoDocComment;
 use Test\Unit\DuckTyping\Fixtures\ClassWithNoImplementsAnnotations;
 use Test\Unit\DuckTyping\Fixtures\ClassWithNonMatchingImplementsAnnotations;
+use Test\Unit\DuckTyping\Fixtures\ClassWithToString;
+use Test\Unit\DuckTyping\Fixtures\Entity;
+use Test\Unit\DuckTyping\Fixtures\EntityWithToStringId;
 use Test\Unit\DuckTyping\Fixtures\InterfaceWithSomeMethods;
 
 class DuckTypeCheckerTest extends TestCase
@@ -107,5 +110,52 @@ class DuckTypeCheckerTest extends TestCase
     {
         $object = new ClassWithNoDocComment();
         $this->assertFalse(DuckTypeChecker::valueCanBeUsedAs($object, InterfaceWithSomeMethods::class));
+    }
+
+    /**
+     * @test
+     */
+    public function a_method_which_returns_a_to_string_object_can_be_used_as_a_method_that_returns_a_string()
+    {
+        $object = new EntityWithToStringId();
+        $this->assertTrue(DuckTypeChecker::valueCanBeUsedAs($object, Entity::class));
+    }
+
+    /**
+     * @test
+     */
+    public function a_string_can_be_used_as_a_string()
+    {
+        $this->assertTrue(DuckTypeChecker::valueCanBeUsedAs('Some string', 'string'));
+    }
+
+    /**
+     * @test
+     */
+    public function an_object_with_a_to_string_method_can_be_used_as_a_string()
+    {
+        $this->assertTrue(DuckTypeChecker::valueCanBeUsedAs(new ClassWithToString(), 'string'));
+    }
+
+    /**
+     * @test
+     */
+    public function a_method_with_a_nullable_return_type_can_not_be_used_as_a_method_with_a_non_nullable_return_type()
+    {
+        $object = new class()
+        {
+            public function id() : ?string
+            {
+            }
+        };
+
+        $expected = new class()
+        {
+            public function id() : string
+            {
+            }
+        };
+
+        $this->assertFalse(DuckTypeChecker::valueCanBeUsedAs($object, get_class($expected)));
     }
 }

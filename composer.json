@@ -2,7 +2,7 @@
   "name": "matthiasnoback/php-duck-typing",
   "type": "library",
   "require": {
-    "php": "^7.0",
+    "php": "^7.1",
     "beberlei/assert": "^2.7",
     "phpdocumentor/reflection-docblock": "^3.1"
   },
