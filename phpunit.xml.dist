@@ -10,7 +10,4 @@
             <directory>src/</directory>
         </whitelist>
     </filter>
-    <php>
-        <env name="APP_ROOT" value="./"/>
-    </php>
 </phpunit>
