@@ -7,6 +7,7 @@ final class ClassWithMatchingMethodsButNoMatchingParameters
 {
     public function methodWithReturnType() : bool
     {
+        return true;
     }
 
     public function methodWithTypedParameters()

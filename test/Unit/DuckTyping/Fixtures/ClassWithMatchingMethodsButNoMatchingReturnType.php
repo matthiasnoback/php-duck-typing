@@ -7,6 +7,7 @@ final class ClassWithMatchingMethodsButNoMatchingReturnType
 {
     public function methodWithReturnType() : int
     {
+        return 1;
     }
 
     public function methodWithTypedParameters(string $parameter)

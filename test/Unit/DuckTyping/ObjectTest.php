@@ -18,7 +18,10 @@ final class ObjectTest extends TestCase
     public function it_adds_a_convenience_wrapper_for_duck_type_checker()
     {
         $object = new ClassActuallyImplementsInterface();
-        $this->assertTrue(Object($object)->canBeUsedAs(InterfaceWithSomeMethods::class));
+
+        Object($object)->shouldBeUsableAs(InterfaceWithSomeMethods::class);
+
+        $this->assertTrue(true);
     }
 
     /**
@@ -31,18 +34,5 @@ final class ObjectTest extends TestCase
         $this->expectException(TypeMismatch::class);
 
         Object($object)->shouldBeUsableAs(InterfaceWithSomeMethods::class);
-    }
-
-    /**
-     * @test
-     */
-    public function assert_function_succeeds_on_type_match()
-    {
-        $object = new ClassWithMatchingMethods();
-
-        Object($object)->shouldBeUsableAs(InterfaceWithSomeMethods::class);
-
-        // having no assertion in this method triggers a PHPUnit warning ;)
-        $this->assertTrue(true);
     }
 }

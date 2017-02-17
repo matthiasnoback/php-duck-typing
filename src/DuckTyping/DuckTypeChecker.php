@@ -7,18 +7,25 @@ use DuckTyping\Types\HasToStringMethod;
 
 class DuckTypeChecker
 {
-    public static function valueCanBeUsedAs($type, string $useAsType) : bool
+    public static function valueCanBeUsedAs($value, string $useAsType) : void
     {
-        if (is_object($type)) {
-            $type = get_class($type);
+        if (is_object($value)) {
+            $type = get_class($value);
         } else {
-            $type = gettype($type);
+            $type = gettype($value);
         }
 
-        return self::typeCanBeUsedAs($type, $useAsType);
+        $reasons = [];
+        $result = self::typeCanBeUsedAs($type, $useAsType, $reasons);
+
+        if ($result) {
+            return;
+        }
+
+        throw new TypeMismatch($type, $useAsType, $reasons);
     }
 
-    private static function typeCanBeUsedAs(string $type, string $useAsType)
+    private static function typeCanBeUsedAs(string $type, string $useAsType, array &$reasons)
     {
         if ($type === $useAsType) {
             return true;
@@ -29,53 +36,20 @@ class DuckTypeChecker
         if (class_exists($type)) {
             if ($useAsType === 'string') {
                 // special case to treat objects with __toString() method as a string
-                return self::typeCanBeUsedAs($type, HasToStringMethod::class);
+                return self::typeCanBeUsedAs($type, HasToStringMethod::class, $reasons);
             }
 
             if (is_a($type, $useAsType, true)) {
                 return true;
             }
 
-            if (self::hasImplementsAnnotationForInterface($type, $useAsType)) {
-                return true;
-            }
-
-            return self::hasMatchingMethods($type, $useAsType);
+            return self::hasMatchingMethods($type, $useAsType, $reasons);
         }
 
         return false;
     }
 
-    /**
-     * Returns `true` if the given object has an annotation claiming that it implements the given interface.
-     *
-     * @param string $type
-     * @param string $interface
-     * @return bool
-     */
-    private static function hasImplementsAnnotationForInterface(string $type, string $interface) : bool
-    {
-        $docComment = (new \ReflectionClass($type))->getDocComment();
-        if (!$docComment) {
-            return false;
-        }
-
-        if (preg_match_all('/^ \* \@implements (.+)$/m', $docComment, $matches) === 0) {
-            return false;
-        }
-
-        $implementsTags = $matches[1];
-
-        foreach ($implementsTags as $tag) {
-            if (is_a((string)$tag, $interface, true)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static function hasMatchingMethods(string $type, string $interface) : bool
+    private static function hasMatchingMethods(string $type, string $interface, array &$reasons) : bool
     {
         $reflectionClass = new \ReflectionClass($type);
 
@@ -88,6 +62,7 @@ class DuckTypeChecker
             $actual = self::buildMethodSignature($reflectionClass->getMethod($interfaceMethod->getName()));
             $expected = self::buildMethodSignature($interfaceMethod);
             if ($expected['parameters'] != $actual['parameters']) {
+                $reasons[] = sprintf('Parameter list of "%s()" does not match', $interfaceMethod->getName());
                 return false;
             }
 
@@ -96,10 +71,13 @@ class DuckTypeChecker
 
                 if (!$expected['return']['allowsNull'] && $actual['return']['allowsNull']) {
                     // we rely on a return value so the implementation should not allow for null
+                    $reasons[] = sprintf('Return type of "%s()" must not be nullable', $interfaceMethod->getName());
                     return false;
                 }
 
-                if (!self::typeCanBeUsedAs($actual['return']['type'], $expected['return']['type'])) {
+                if (!self::typeCanBeUsedAs($actual['return']['type'], $expected['return']['type'], $reasons)) {
+                    $reasons[] = sprintf('Return type of "%s()" does not match', $interfaceMethod->getName());
+
                     return false;
                 }
             }

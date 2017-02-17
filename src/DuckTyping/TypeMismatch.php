@@ -5,19 +5,19 @@ namespace DuckTyping;
 
 final class TypeMismatch extends \LogicException
 {
-    public function __construct($object, string $interface, array $reasons)
+    public function __construct(string $type, string $useAsType, array $reasons)
     {
         parent::__construct(
             sprintf(
-                "Object of type \"%s\" can not be used as an instance of \"%s\": \n",
-                get_class($object),
-                implode("\n", array_map(function (\Exception $exception) {
+                "Type \"%s\" can not be used as an instance of \"%s\": \n%s",
+                $type,
+                $useAsType,
+                implode("\n", array_map(function (string $reason) {
                     return sprintf(
-                        "- %s\n",
-                        $exception->getMessage()
+                        "- %s",
+                        $reason
                     );
-                }, $reasons)),
-                $interface
+                }, $reasons))
             )
         );
     }
